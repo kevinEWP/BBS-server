@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sstream>
+#include <vector>
 
 #define IP "127.0.0.1"
 #define prompt "% "
@@ -17,17 +19,17 @@ private:
 public:
     BBS_server(/* args */);
     ~BBS_server();
-    string Split_cmd(string cmd);
-    string Parase(string cmd, string cmd_list);
-    string Register();
-    string Login();
+    string Split_cmd(string &cmd);
+    string Parase(vector<string> cmd_list);
+    string Register(vector<string> cmd_list);
+    string Login(vector<string> cmd_list);
     string Logout();
     string Whoami();
     string List_user();
     //Message Box
-    string Send();
-    string List_msg();
-    string Receive();
+    string Send(vector<string> cmd_list);
+    string List_msg(vector<string> cmd_list);
+    string Receive(vector<string> cmd_list);
 };
 
 BBS_server::BBS_server(/* args */)
@@ -42,8 +44,63 @@ BBS_server::~BBS_server()
     //clean db, mb
 }
 
-BBS_server::Split_cmd(string cmd)
+string BBS_server::Split_cmd(string &cmd)
 {
+    string error("");
+    vector<string> cmd_list;
+    if (cmd.length() == 0)
+    {
+        return error;
+    }
+    else
+    {
+        stringstream ss;
+        string out;
+        int i = 0;
+        ss << cmd;
+        while (ss >> out)
+        {
+            cmd_list[i] = out;
+            i++;
+        }
+    }
+
+    return Parase(cmd_list);
+}
+
+string BBS_server::Parase(vector<string> cmd_list)
+{
+    string error("");
+    if (cmd_list[0] == "register")
+    {
+        //return Register(cmd_list);
+        return error;
+    }
+    else if (cmd_list[0] == "login")
+    {
+        //return Login(cmd_list);
+        return error;
+    }
+    else if (cmd_list[0] == "logout")
+    {
+        //return Logout();
+        return error;
+    }
+    else if (cmd_list[0] == "whoami")
+    {
+        //return Whoami();
+        return error;
+    }
+    else if (cmd_list[0] == "list-user")
+    {
+        //return List_user();
+        return error;
+    }
+    else if (cmd_list[0] == "exit")
+    {
+        return error;
+    }
+    return error;
 }
 
 int main(int argc, char const *argv[])
@@ -108,19 +165,29 @@ int main(int argc, char const *argv[])
             char buff[1024];
             memset(buff, 0, 1024);
             auto r = recv(newfd, (char *)buff, 1024, 0);
-            cout << "got message" << endl;
+            //cout << "got command" << endl;
             if (r == 0)
             {
                 cout << "receive fail" << endl;
             }
             string cmd(buff);
+            //cout << "cmd: " << cmd << endl;
+            break;
             //parase cmd to reply
             string reply = bbs.Split_cmd(cmd);
             //if reply == exit: break
-
+            if (reply.length() == 0)
+            {
+                break;
+            }
             //if reply == other: send reply
+            if (reply.length() > 0)
+            {
+                send(newfd, (char *)reply.c_str(), reply.length() * sizeof(reply[0]), 0);
+            }
         }
         //close client fd
+        send(newfd, (char *)"bye~", strlen("bye~"), 0);
         cout << "end of connection" << endl;
         close(newfd);
     }

@@ -42,6 +42,10 @@ BBS_server::~BBS_server()
     //clean db, mb
 }
 
+BBS_server::Split_cmd(string cmd)
+{
+}
+
 int main(int argc, char const *argv[])
 {
     int sockfd, newfd;
@@ -78,7 +82,7 @@ int main(int argc, char const *argv[])
         perror("listen");
         return 0;
     }
-
+    BBS_server bbs;
     struct sockaddr_in new_addr;
     int addrlen = sizeof(new_addr);
     while (true)
@@ -101,9 +105,17 @@ int main(int argc, char const *argv[])
             //send %
             send(newfd, (char *)"% ", strlen("% "), 0);
             //receive cmd from client
-
+            char buff[1024];
+            memset(buff, 0, 1024);
+            auto r = recv(newfd, (char *)buff, 1024, 0);
+            cout << "got message" << endl;
+            if (r == 0)
+            {
+                cout << "receive fail" << endl;
+            }
+            string cmd(buff);
             //parase cmd to reply
-
+            string reply = bbs.Split_cmd(cmd);
             //if reply == exit: break
 
             //if reply == other: send reply

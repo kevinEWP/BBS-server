@@ -19,7 +19,7 @@ private:
 public:
     BBS_server(/* args */);
     ~BBS_server();
-    string Split_cmd(string &cmd);
+    string Split_cmd(string cmd);
     string Parase(vector<string> cmd_list);
     string Register(vector<string> cmd_list);
     string Login(vector<string> cmd_list);
@@ -44,33 +44,34 @@ BBS_server::~BBS_server()
     //clean db, mb
 }
 
-string BBS_server::Split_cmd(string &cmd)
+string BBS_server::Split_cmd(string cmd)
 {
-    string error("");
+    string error("invalid command\n");
     vector<string> cmd_list;
-    if (cmd.length() == 0)
+    if (cmd.length() < 5)
     {
         return error;
     }
     else
     {
+        //cout << "start split" << endl;
         stringstream ss;
         string out;
-        int i = 0;
         ss << cmd;
         while (ss >> out)
         {
-            cmd_list[i] = out;
-            i++;
+            cmd_list.push_back(out);
+            //cout << out << endl;
         }
+        ss.clear();
     }
-
+    //cout << "split !!!" << endl;
     return Parase(cmd_list);
 }
 
 string BBS_server::Parase(vector<string> cmd_list)
 {
-    string error("");
+    string error("command not found\n");
     if (cmd_list[0] == "register")
     {
         //return Register(cmd_list);
@@ -98,7 +99,7 @@ string BBS_server::Parase(vector<string> cmd_list)
     }
     else if (cmd_list[0] == "exit")
     {
-        return error;
+        return cmd_list[0];
     }
     return error;
 }
@@ -171,20 +172,15 @@ int main(int argc, char const *argv[])
                 cout << "receive fail" << endl;
             }
             string cmd(buff);
-            //cout << "cmd: " << cmd << endl;
-            break;
             //parase cmd to reply
             string reply = bbs.Split_cmd(cmd);
-            //if reply == exit: break
-            if (reply.length() == 0)
+            if (reply == "exit")
             {
                 break;
             }
-            //if reply == other: send reply
-            if (reply.length() > 0)
-            {
-                send(newfd, (char *)reply.c_str(), reply.length() * sizeof(reply[0]), 0);
-            }
+            cout << "send reply" << endl;
+            send(newfd, (char *)reply.c_str(), reply.length() * sizeof(reply[0]), 0);
+            cout << "send complete" << endl;
         }
         //close client fd
         send(newfd, (char *)"bye~", strlen("bye~"), 0);

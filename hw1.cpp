@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <sstream>
 #include <vector>
+#include <map>
 
 #define IP "127.0.0.1"
 #define prompt "% "
@@ -16,9 +17,13 @@ class BBS_server
 {
 private:
     //db, mb
+    map<string, string> db;
+
 public:
     BBS_server(/* args */);
     ~BBS_server();
+    int user_state = 0;
+    string user;
     string Split_cmd(string cmd);
     string Parase(vector<string> cmd_list);
     string Register(vector<string> cmd_list);
@@ -42,11 +47,12 @@ BBS_server::BBS_server(/* args */)
 BBS_server::~BBS_server()
 {
     //clean db, mb
+    db.clear();
 }
 
 string BBS_server::Split_cmd(string cmd)
 {
-    string error("invalid command\n");
+    string error("");
     vector<string> cmd_list;
     if (cmd.length() < 5)
     {
@@ -71,37 +77,120 @@ string BBS_server::Split_cmd(string cmd)
 
 string BBS_server::Parase(vector<string> cmd_list)
 {
-    string error("command not found\n");
+    string error("");
     if (cmd_list[0] == "register")
     {
-        //return Register(cmd_list);
-        return error;
+        return Register(cmd_list);
     }
     else if (cmd_list[0] == "login")
     {
-        //return Login(cmd_list);
-        return error;
+        return Login(cmd_list);
     }
     else if (cmd_list[0] == "logout")
     {
-        //return Logout();
-        return error;
+        return Logout();
     }
     else if (cmd_list[0] == "whoami")
     {
-        //return Whoami();
-        return error;
+        return Whoami();
     }
     else if (cmd_list[0] == "list-user")
     {
-        //return List_user();
-        return error;
+        return List_user();
     }
     else if (cmd_list[0] == "exit")
     {
         return cmd_list[0];
     }
     return error;
+}
+
+string BBS_server::Register(vector<string> cmd_list)
+{
+    if (cmd_list.size() != 3)
+    {
+        return "Usage: register <username> <password>\n";
+    }
+    string username = cmd_list[1];
+    string password = cmd_list[2];
+    pair<map<string, string>::iterator, bool> ret;
+    ret = db.insert(pair<string, string>(username, password));
+    if (ret.second == true)
+    {
+        return "Register successfully.\n";
+    }
+    else
+    {
+        return "Username is already used.\n";
+    }
+}
+
+string BBS_server::List_user()
+{
+    string list;
+    for (auto it = db.begin(); it != db.end(); it++)
+    {
+        list.append((*it).first + "\n");
+    }
+    return list;
+}
+
+string BBS_server::Login(vector<string> cmd_list)
+{
+    if (cmd_list.size() != 3)
+    {
+        return "Usage: login <username> <password>\n";
+    }
+    if (user_state == 1)
+    {
+        return "Please logout first.\n";
+    }
+    map<string, string>::iterator iter;
+    iter = db.find(cmd_list[1]);
+    if (iter != db.end())
+    {
+        //user exist
+        if (cmd_list[2] == iter->second)
+        {
+            //login successfully
+            user_state = 1;
+            user = iter->first;
+            return "Welcome, " + iter->first + ".\n";
+        }
+        else
+        {
+            return "Login failed.\n";
+        }
+    }
+    else
+    {
+        return "Login failed.\n";
+    }
+}
+
+string BBS_server::Logout()
+{
+    if (user_state == 0)
+    {
+        return "Please login first.\n";
+    }
+    else
+    {
+        user_state = 0;
+        return "Bye, " + user + ".\n";
+    }
+}
+
+string BBS_server::Whoami()
+{
+    if (user_state == 0)
+    {
+        return "Please login first.\n";
+    }
+    else
+    {
+        return user + "\n";
+    }
 }
 
 int main(int argc, char const *argv[])
@@ -119,7 +208,7 @@ int main(int argc, char const *argv[])
     }
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
     {
-        perror("socket():");
+        perror("socket");
         return 0;
     }
     bzero(&addr, sizeof(addr));
@@ -145,14 +234,14 @@ int main(int argc, char const *argv[])
     int addrlen = sizeof(new_addr);
     while (true)
     {
-        cout << "waiting for connect" << endl;
+        //cout << "waiting for connect" << endl;
         if ((newfd = accept(sockfd, (struct sockaddr *)&new_addr, (socklen_t *)&addrlen)) < 0)
         {
             cout << "accept failed" << endl;
             perror("accept");
             return 0;
         }
-        cout << "new connection, socket fd: " << newfd << endl;
+        //cout << "new connection, socket fd: " << newfd << endl;
         //greeting
         send(newfd, greeting1, strlen(greeting1), 0);
         send(newfd, greeting2, strlen(greeting1), 0);
@@ -166,25 +255,31 @@ int main(int argc, char const *argv[])
             char buff[1024];
             memset(buff, 0, 1024);
             auto r = recv(newfd, (char *)buff, 1024, 0);
-            //cout << "got command" << endl;
             if (r == 0)
             {
-                cout << "receive fail" << endl;
+                //cout << "receive fail" << endl;
+                string end_newfd = bbs.Split_cmd("exit");
+                break;
             }
             string cmd(buff);
             //parase cmd to reply
             string reply = bbs.Split_cmd(cmd);
             if (reply == "exit")
             {
+                if (bbs.user_state == 1)
+                {
+                    string bye_msg = "Bye, " + bbs.user + ".\n";
+                    send(newfd, (char *)bye_msg.c_str(), bye_msg.length() * sizeof(bye_msg[0]), 0);
+                }
                 break;
             }
-            cout << "send reply" << endl;
+            //cout << "send reply" << endl;
             send(newfd, (char *)reply.c_str(), reply.length() * sizeof(reply[0]), 0);
-            cout << "send complete" << endl;
+            //cout << "send complete" << endl;
         }
         //close client fd
-        send(newfd, (char *)"bye~", strlen("bye~"), 0);
-        cout << "end of connection" << endl;
+        bbs.user_state = 0;
+        bbs.user = "";
         close(newfd);
     }
 

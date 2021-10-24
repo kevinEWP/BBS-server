@@ -13,10 +13,37 @@
 #define prompt "% "
 using namespace std;
 
+class Message
+{
+public:
+    string sender, messages;
+    Message(string s, string m)
+    {
+        sender = s;
+        messages = m;
+    }
+};
+
+class Mailbox
+{
+private:
+    /* data */
+public:
+    string owner;
+    map<string, int> sender_list;
+    vector<Message> msg_list;
+    Mailbox(string user);
+};
+
+Mailbox::Mailbox(string user)
+{
+    owner = user;
+}
+
 class BBS_server
 {
 private:
-    //db, mb
+    //db
     map<string, string> db;
 
 public:
@@ -32,8 +59,9 @@ public:
     string Whoami();
     string List_user();
     //Message Box
+    vector<Mailbox> user_list;
     string Send(vector<string> cmd_list);
-    string List_msg(vector<string> cmd_list);
+    string List_msg();
     string Receive(vector<string> cmd_list);
 };
 
@@ -48,6 +76,7 @@ BBS_server::~BBS_server()
 {
     //clean db, mb
     db.clear();
+    user_list.clear();
 }
 
 string BBS_server::Split_cmd(string cmd)
@@ -63,15 +92,34 @@ string BBS_server::Split_cmd(string cmd)
         //cout << "start split" << endl;
         stringstream ss;
         string out;
+        int split = 1, send_c = 0;
+        //cout << "cmd: " << cmd;
         ss << cmd;
         while (ss >> out)
         {
+            if (out == "send")
+            {
+                send_c = 2;
+            }
+            if (send_c == split)
+            {
+                cmd_list.push_back(out);
+                string msg_content, gg;
+                getline(ss, gg, '\"'); //put space
+                getline(ss, msg_content, '\"');
+                cmd_list.push_back(msg_content);
+                break;
+            }
             cmd_list.push_back(out);
-            //cout << out << endl;
+            split++;
         }
         ss.clear();
+        /*
+        for (int i = 0; i < cmd_list.size(); i++)
+        {
+            cout << cmd_list[i] << endl;
+        }*/
     }
-    //cout << "split !!!" << endl;
     return Parase(cmd_list);
 }
 
@@ -102,6 +150,18 @@ string BBS_server::Parase(vector<string> cmd_list)
     {
         return cmd_list[0];
     }
+    else if (cmd_list[0] == "send")
+    {
+        return Send(cmd_list);
+    }
+    else if (cmd_list[0] == "list-msg")
+    {
+        return List_msg();
+    }
+    else if (cmd_list[0] == "receive")
+    {
+        return Receive(cmd_list);
+    }
     return error;
 }
 
@@ -117,6 +177,8 @@ string BBS_server::Register(vector<string> cmd_list)
     ret = db.insert(pair<string, string>(username, password));
     if (ret.second == true)
     {
+        Mailbox mb(username);
+        user_list.push_back(mb);
         return "Register successfully.\n";
     }
     else
@@ -191,6 +253,131 @@ string BBS_server::Whoami()
     {
         return user + "\n";
     }
+}
+
+string BBS_server::Send(vector<string> cmd_list)
+{
+    if (cmd_list.size() != 3)
+    {
+        return "Usage: send <username> <message>\n";
+    }
+    if (user_state == 0)
+    {
+        return "Please login first.\n";
+    }
+    map<string, string>::iterator iter;
+    iter = db.find(cmd_list[1]);
+    if (iter != db.end())
+    {
+        //receiver exist
+        //find receiver in the list
+        for (int i = 0; i < user_list.size(); i++)
+        {
+            if (user_list[i].owner == cmd_list[1])
+            {
+                //check if user send to receiver already
+                map<string, int>::iterator it;
+                it = user_list[i].sender_list.find(user);
+                if (it != user_list[i].sender_list.end())
+                {
+                    //send before, mail count+1
+                    int mail_count = it->second;
+                    mail_count++;
+                    user_list[i].sender_list[user] = mail_count;
+                }
+                else
+                {
+                    user_list[i].sender_list[user] = 1;
+                }
+                //store msg into msg_list
+                Message msg(user, cmd_list[2]);
+                user_list[i].msg_list.push_back(msg);
+                break;
+            }
+        }
+        //cout << "store in mailbox" << endl;
+        return "";
+    }
+    else
+    {
+        return "User not existed.\n";
+    }
+}
+
+string BBS_server::List_msg()
+{
+    if (user_state == 0)
+    {
+        return "Please login first.\n";
+    }
+    //find your mailbox
+    for (int i = 0; i < user_list.size(); i++)
+    {
+        if (user_list[i].owner == user)
+        {
+            if (user_list[i].msg_list.empty())
+            {
+                return "Your message box is empty.\n";
+            }
+            //list all sender
+            string list, count;
+            for (auto it = user_list[i].sender_list.begin(); it != user_list[i].sender_list.end(); it++)
+            {
+                count = to_string((*it).second);
+                if ((*it).second == 0)
+                {
+                    continue;
+                }
+                list.append(count + " message from " + (*it).first + ".\n");
+            }
+            return list;
+        }
+    }
+    return "";
+}
+
+string BBS_server::Receive(vector<string> cmd_list)
+{
+    if (cmd_list.size() != 2)
+    {
+        return "Usage: receive <username>\n";
+    }
+    if (user_state == 0)
+    {
+        return "Please login first.\n";
+    }
+    map<string, string>::iterator iter;
+    iter = db.find(cmd_list[1]);
+    if (iter != db.end())
+    {
+        //sender exist
+        //find your mailbox
+        for (int i = 0; i < user_list.size(); i++)
+        {
+            if (user_list[i].owner == user)
+            {
+                //list all sender
+                for (auto it = user_list[i].msg_list.begin(); it != user_list[i].msg_list.end(); it++)
+                {
+                    if ((*it).sender == cmd_list[1])
+                    {
+                        string msg = (*it).messages;
+                        int c = user_list[i].sender_list[cmd_list[1]];
+                        user_list[i].msg_list.erase(it);
+                        c--;
+                        user_list[i].sender_list[cmd_list[1]] = c;
+                        return msg + "\n";
+                    }
+                }
+                return "";
+            }
+        }
+    }
+    else
+    {
+        return "User not existed.\n";
+    }
+    return "";
 }
 
 int main(int argc, char const *argv[])

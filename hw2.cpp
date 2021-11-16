@@ -13,7 +13,87 @@
 #define IP "127.0.0.1"
 #define prompt "% "
 using namespace std;
+//HW2
+class Comment
+{
+public:
+    string user, comments;
+    Comment(string owner, string text)
+    {
+        user = owner;
+        comments = text;
+    }
+};
+class Post
+{
+private:
+    /* data */
+public:
+    int s_n;
+    string board_name, title, author, date;
+    vector<string> contents;
+    vector<Comment> comments;
+    Post(int n, string user, string time, string board, string title);
+    void CreateContent(string text);
+    void CreateComment(Comment newcomment);
+    string ShowPost();
+    ~Post();
+};
+Post::Post(int n, string user, string time, string board, string title)
+{
+    s_n = n;
+    author = user;
+    date = time;
+}
 
+Post::~Post()
+{
+    contents.clear();
+    comments.clear();
+}
+void Post::CreateContent(string text)
+{
+    //if text has <br>, save as next line
+}
+void Post::CreateComment(Comment newcomment)
+{
+    comments.push_back(newcomment);
+}
+class Board
+{
+private:
+    /* data */
+public:
+    int index;
+    string board_name, moderater;
+    vector<Post> posts;
+    Board(string name, string user);
+    void CreatePost(Post newpost);
+    string ShowBoard();
+    ~Board();
+};
+
+Board::Board(string name, string user)
+{
+    board_name = name;
+    moderater = user;
+}
+
+Board::~Board()
+{
+    posts.clear();
+}
+void Board::CreatePost(Post newpost)
+{
+    posts.push_back(newpost);
+}
+string Board::ShowBoard()
+{
+    //List all posts in a board
+    string table = "S/N Title Author Date\n";
+}
+
+//HW1
 class Message
 {
 public:
@@ -385,7 +465,7 @@ int main(int argc, char const *argv[])
 {
     int sockfd, newfd;
     //max client 10
-    int max_client = 10, client_socket[10], max_fd, sd;
+    int max_client = 11, client_socket[11], max_fd, sd;
     for (int i = 0; i < max_client; i++)
     {
         client_socket[i] = 0;

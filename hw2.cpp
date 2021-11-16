@@ -37,6 +37,7 @@ public:
     void CreateContent(string text);
     void CreateComment(Comment newcomment);
     string ShowPost();
+    void UpdatePost();
     ~Post();
 };
 Post::Post(int n, string user, string time, string board, string title)
@@ -58,6 +59,28 @@ void Post::CreateContent(string text)
 void Post::CreateComment(Comment newcomment)
 {
     comments.push_back(newcomment);
+}
+string Post::ShowPost()
+{
+    //Show the post cmd: read <post-S/N>
+    string show, line("--\n");
+    show.append("Author: " + author + "\n");
+    show.append("Title: " + title + "\n");
+    show.append("Date: " + date + "\n");
+    show.append(line);
+    for (int i = 0; i < contents.size(); i++)
+    {
+        show.append(contents[i] + "\n");
+    }
+    show.append(line);
+    if (!comments.empty())
+    {
+        for (int i = 0; i < comments.size(); i++)
+        {
+            show.append(comments[i].user + ": " + comments[i].comments + "\n");
+        }
+    }
+    return show;
 }
 class Board
 {
@@ -91,6 +114,12 @@ string Board::ShowBoard()
 {
     //List all posts in a board
     string table = "S/N Title Author Date\n";
+    string list(table);
+    for (int i = 0; i < posts.size(); i++)
+    {
+        list.append(to_string(posts[i].s_n) + " " + posts[i].title + " " + posts[i].author + " " + posts[i].date + "\n");
+    }
+    return list;
 }
 
 //HW1
@@ -126,6 +155,8 @@ class BBS_server
 private:
     //db
     map<string, string> db;
+    map<Board, int> board_list;
+    map<int, Post> post_list;
 
 public:
     BBS_server(/* args */);
@@ -144,6 +175,9 @@ public:
     string Send(vector<string> cmd_list);
     string List_msg();
     string Receive(vector<string> cmd_list);
+    //HW2
+    string CreateBoard(vector<string> cmd_list);
+    string CreatePost(vector<string> cmd_list);
 };
 
 BBS_server::BBS_server(/* args */)
@@ -180,6 +214,7 @@ string BBS_server::Split_cmd(string cmd)
         {
             if (out == "send")
             {
+                //dont split space
                 send_c = 2;
             }
             if (send_c == split)

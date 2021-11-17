@@ -112,7 +112,7 @@ void Board::CreatePost(Post newpost)
 }
 string Board::ShowBoard()
 {
-    //List all posts in a board
+    //List all posts in a board,cmd:list-post <board-name>
     string table = "S/N Title Author Date\n";
     string list(table);
     for (int i = 0; i < posts.size(); i++)
@@ -153,38 +153,48 @@ Mailbox::Mailbox(string user)
 class BBS_server
 {
 private:
-    //db
+    //db username,password
     map<string, string> db;
-    map<Board, int> board_list;
+    map<string, Board> board_list;
+    vector<Board> board_index;
     map<int, Post> post_list;
 
 public:
-    BBS_server(/* args */);
+    BBS_server(int max_client);
     ~BBS_server();
-    int user_state = 0;
-    string user;
-    string Split_cmd(string cmd);
-    string Parase(vector<string> cmd_list);
+    //diff from HW1 user_state, user(vec)
+    vector<int> user_state; //login table
+    vector<string> user;    //login username
+    string Split_cmd(string cmd, int uid);
+    string Parase(vector<string> cmd_list, int uid);
     string Register(vector<string> cmd_list);
-    string Login(vector<string> cmd_list);
-    string Logout();
-    string Whoami();
+    string Login(vector<string> cmd_list, int uid);
+    string Logout(int uid);
+    string Whoami(int uid);
     string List_user();
     //Message Box
     vector<Mailbox> user_list;
-    string Send(vector<string> cmd_list);
-    string List_msg();
-    string Receive(vector<string> cmd_list);
+    string Send(vector<string> cmd_list, int uid);
+    string List_msg(int uid);
+    string Receive(vector<string> cmd_list, int uid);
     //HW2
-    string CreateBoard(vector<string> cmd_list);
-    string CreatePost(vector<string> cmd_list);
+    string CreateBoard(vector<string> cmd_list, int uid);
+    string CreatePost(vector<string> cmd_list, int uid);
+    string ListBoard();
+    string ListPost(vector<string> cmd_list);
+    string Read(vector<string> cmd_list);
+    string DeletePost(vector<string> cmd_list, int uid);
+    string UpdatePost(vector<string> cmd_list, int uid);
+    string Comment(vector<string> cmd_list, int uid);
 };
 
-BBS_server::BBS_server(/* args */)
+BBS_server::BBS_server(int max_client)
 {
-    //load in db & mseeage box
-    //db = args
-    //mb = args
+    for (int i = 0; i < max_client; i++)
+    {
+        user_state.push_back(0);
+        user.push_back("");
+    }
 }
 
 BBS_server::~BBS_server()
@@ -192,9 +202,15 @@ BBS_server::~BBS_server()
     //clean db, mb
     db.clear();
     user_list.clear();
+    //clean
+    board_list.clear();
+    board_index.clear();
+    post_list.clear();
+    user_state.clear();
+    user.clear();
 }
 
-string BBS_server::Split_cmd(string cmd)
+string BBS_server::Split_cmd(string cmd, int uid)
 {
     string error("");
     vector<string> cmd_list;
@@ -236,10 +252,10 @@ string BBS_server::Split_cmd(string cmd)
             cout << cmd_list[i] << endl;
         }*/
     }
-    return Parase(cmd_list);
+    return Parase(cmd_list, uid);
 }
 
-string BBS_server::Parase(vector<string> cmd_list)
+string BBS_server::Parase(vector<string> cmd_list, int uid)
 {
     string error("");
     if (cmd_list[0] == "register")
@@ -248,15 +264,15 @@ string BBS_server::Parase(vector<string> cmd_list)
     }
     else if (cmd_list[0] == "login")
     {
-        return Login(cmd_list);
+        return Login(cmd_list, uid);
     }
     else if (cmd_list[0] == "logout")
     {
-        return Logout();
+        return Logout(uid);
     }
     else if (cmd_list[0] == "whoami")
     {
-        return Whoami();
+        return Whoami(uid);
     }
     else if (cmd_list[0] == "list-user")
     {
@@ -268,15 +284,53 @@ string BBS_server::Parase(vector<string> cmd_list)
     }
     else if (cmd_list[0] == "send")
     {
-        return Send(cmd_list);
+        return Send(cmd_list, uid);
     }
     else if (cmd_list[0] == "list-msg")
     {
-        return List_msg();
+        return List_msg(uid);
     }
     else if (cmd_list[0] == "receive")
     {
-        return Receive(cmd_list);
+        return Receive(cmd_list, uid);
+    }
+    else if (cmd_list[0] == "create-board")
+    {
+        return CreateBoard(cmd_list, uid);
+    }
+    else if (cmd_list[0] == "create-post")
+    {
+        return error;
+        //return CreatePost(cmd_list);
+    }
+    else if (cmd_list[0] == "list-board")
+    {
+        return ListBoard();
+    }
+    else if (cmd_list[0] == "list-post")
+    {
+        return error;
+        //return ListPost(cmd_list);
+    }
+    else if (cmd_list[0] == "read")
+    {
+        return error;
+        //return Read(cmd_list);
+    }
+    else if (cmd_list[0] == "delete-post")
+    {
+        return error;
+        //return DeletePost(cmd_list);
+    }
+    else if (cmd_list[0] == "update-post")
+    {
+        return error;
+        //return UpdatePost(cmd_list);
+    }
+    else if (cmd_list[0] == "comment")
+    {
+        return error;
+        //return Comment(cmd_list);
     }
     return error;
 }
@@ -313,13 +367,13 @@ string BBS_server::List_user()
     return list;
 }
 
-string BBS_server::Login(vector<string> cmd_list)
+string BBS_server::Login(vector<string> cmd_list, int uid)
 {
     if (cmd_list.size() != 3)
     {
         return "Usage: login <username> <password>\n";
     }
-    if (user_state == 1)
+    if (user_state[uid] == 1)
     {
         return "Please logout first.\n";
     }
@@ -331,8 +385,8 @@ string BBS_server::Login(vector<string> cmd_list)
         if (cmd_list[2] == iter->second)
         {
             //login successfully
-            user_state = 1;
-            user = iter->first;
+            user_state[uid] = 1;
+            user[uid] = iter->first;
             return "Welcome, " + iter->first + ".\n";
         }
         else
@@ -346,38 +400,38 @@ string BBS_server::Login(vector<string> cmd_list)
     }
 }
 
-string BBS_server::Logout()
+string BBS_server::Logout(int uid)
 {
-    if (user_state == 0)
+    if (user_state[uid] == 0)
     {
         return "Please login first.\n";
     }
     else
     {
-        user_state = 0;
-        return "Bye, " + user + ".\n";
+        user_state[uid] = 0;
+        return "Bye, " + user[uid] + ".\n";
     }
 }
 
-string BBS_server::Whoami()
+string BBS_server::Whoami(int uid)
 {
-    if (user_state == 0)
+    if (user_state[uid] == 0)
     {
         return "Please login first.\n";
     }
     else
     {
-        return user + "\n";
+        return user[uid] + "\n";
     }
 }
 
-string BBS_server::Send(vector<string> cmd_list)
+string BBS_server::Send(vector<string> cmd_list, int uid)
 {
     if (cmd_list.size() != 3)
     {
         return "Usage: send <username> <message>\n";
     }
-    if (user_state == 0)
+    if (user_state[uid] == 0)
     {
         return "Please login first.\n";
     }
@@ -393,20 +447,20 @@ string BBS_server::Send(vector<string> cmd_list)
             {
                 //check if user send to receiver already
                 map<string, int>::iterator it;
-                it = user_list[i].sender_list.find(user);
+                it = user_list[i].sender_list.find(user[uid]);
                 if (it != user_list[i].sender_list.end())
                 {
                     //send before, mail count+1
                     int mail_count = it->second;
                     mail_count++;
-                    user_list[i].sender_list[user] = mail_count;
+                    user_list[i].sender_list[user[uid]] = mail_count;
                 }
                 else
                 {
-                    user_list[i].sender_list[user] = 1;
+                    user_list[i].sender_list[user[uid]] = 1;
                 }
                 //store msg into msg_list
-                Message msg(user, cmd_list[2]);
+                Message msg(user[uid], cmd_list[2]);
                 user_list[i].msg_list.push_back(msg);
                 break;
             }
@@ -420,16 +474,16 @@ string BBS_server::Send(vector<string> cmd_list)
     }
 }
 
-string BBS_server::List_msg()
+string BBS_server::List_msg(int uid)
 {
-    if (user_state == 0)
+    if (user_state[uid] == 0)
     {
         return "Please login first.\n";
     }
     //find your mailbox
     for (int i = 0; i < user_list.size(); i++)
     {
-        if (user_list[i].owner == user)
+        if (user_list[i].owner == user[uid])
         {
             if (user_list[i].msg_list.empty())
             {
@@ -452,13 +506,13 @@ string BBS_server::List_msg()
     return "";
 }
 
-string BBS_server::Receive(vector<string> cmd_list)
+string BBS_server::Receive(vector<string> cmd_list, int uid)
 {
     if (cmd_list.size() != 2)
     {
         return "Usage: receive <username>\n";
     }
-    if (user_state == 0)
+    if (user_state[uid] == 0)
     {
         return "Please login first.\n";
     }
@@ -470,7 +524,7 @@ string BBS_server::Receive(vector<string> cmd_list)
         //find your mailbox
         for (int i = 0; i < user_list.size(); i++)
         {
-            if (user_list[i].owner == user)
+            if (user_list[i].owner == user[uid])
             {
                 //list all sender
                 for (auto it = user_list[i].msg_list.begin(); it != user_list[i].msg_list.end(); it++)
@@ -496,11 +550,51 @@ string BBS_server::Receive(vector<string> cmd_list)
     return "";
 }
 
+/////////////////////HW2/////////////////////////////////
+string BBS_server::CreateBoard(vector<string> cmd_list, int uid)
+{
+    if (cmd_list.size() != 2)
+    {
+        return "Usage: create-board <name>\n";
+    }
+    if (user_state[uid] == 0)
+    {
+        return "Please login first.\n";
+    }
+    string boardname = cmd_list[1];
+    Board newboard(boardname, user[uid]);
+    pair<map<string, Board>::iterator, bool>
+        ret;
+    ret = board_list.insert(pair<string, Board>(boardname, newboard));
+    if (ret.second == true)
+    {
+        board_index.push_back(newboard);
+        return "Create board successfully.\n";
+    }
+    else
+    {
+        return "Board already exists.\n";
+    }
+}
+
+string BBS_server::ListBoard()
+{
+    string list;
+    list.append("Index Name Moderator\n");
+    int index = 1;
+    for (auto it = board_index.begin(); it != board_index.end(); it++)
+    {
+        list.append(to_string(index) + " " + (*it).board_name + " " + (*it).moderater + "\n");
+        index++;
+    }
+    return list;
+}
+
 int main(int argc, char const *argv[])
 {
     int sockfd, newfd;
     //max client 10
-    int max_client = 11, client_socket[11], max_fd, sd;
+    int max_client = 10, client_socket[10], max_fd, sd;
     for (int i = 0; i < max_client; i++)
     {
         client_socket[i] = 0;
@@ -539,7 +633,7 @@ int main(int argc, char const *argv[])
         perror("listen");
         return 0;
     }
-    BBS_server bbs;
+    BBS_server bbs(max_client);
     struct sockaddr_in new_addr;
     int addrlen = sizeof(new_addr);
     while (true)
@@ -607,8 +701,8 @@ int main(int argc, char const *argv[])
                 {
                     //cout << "receive fail" << endl;
                     //close client fd
-                    bbs.user_state = 0;
-                    bbs.user = "";
+                    bbs.user_state[i] = 0;
+                    bbs.user[i] = "";
                     client_socket[i] = 0;
                     close(sd);
                 }
@@ -616,17 +710,17 @@ int main(int argc, char const *argv[])
                 {
                     string cmd(buff);
                     //parase cmd to reply
-                    string reply = bbs.Split_cmd(cmd);
+                    string reply = bbs.Split_cmd(cmd, i);
                     if (reply == "exit")
                     {
-                        if (bbs.user_state == 1)
+                        if (bbs.user_state[i] == 1)
                         {
-                            string bye_msg = "Bye, " + bbs.user + ".\n";
+                            string bye_msg = "Bye, " + bbs.user[i] + ".\n";
                             send(sd, (char *)bye_msg.c_str(), bye_msg.length() * sizeof(bye_msg[0]), 0);
                         }
                         //close client fd
-                        bbs.user_state = 0;
-                        bbs.user = "";
+                        bbs.user_state[i] = 0;
+                        bbs.user[i] = "";
                         client_socket[i] = 0;
                         close(sd);
                     }

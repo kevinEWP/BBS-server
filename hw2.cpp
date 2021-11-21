@@ -33,18 +33,20 @@ public:
     string board_name, title, author, date;
     vector<string> contents;
     vector<Comment> comments;
-    Post(int n, string user, string time, string board, string title);
+    Post(int n, string user, string time, string board, string headline);
     void CreateContent(string text);
     void CreateComment(Comment newcomment);
     string ShowPost();
     void UpdatePost();
     ~Post();
 };
-Post::Post(int n, string user, string time, string board, string title)
+Post::Post(int n, string user, string time, string board, string headline)
 {
     s_n = n;
     author = user;
     date = time;
+    board_name = board;
+    title = headline;
 }
 
 Post::~Post()
@@ -223,34 +225,100 @@ string BBS_server::Split_cmd(string cmd, int uid)
         //cout << "start split" << endl;
         stringstream ss;
         string out;
-        int split = 1, send_c = 0;
+        int split = 1, post_c = 0, create = 0, update = 0;
         //cout << "cmd: " << cmd;
         ss << cmd;
         while (ss >> out)
         {
-            if (out == "send")
+            cmd_list.push_back(out);
+            if (out == "create-post")
             {
-                //dont split space
-                send_c = 2;
+                post_c = 2;
+                create = 1;
             }
-            if (send_c == split)
+            if (out == "update-post")
             {
+                post_c = 2;
+                update = 1;
+            }
+            if (post_c == split && create == 1)
+            {
+                //cmd:create-post
+                string title, content, gg;
+                if (ss.eof())
+                {
+                    break;
+                }
+                ss >> out;
+                //cout << "f out --t or --con ? :" << out << endl;
+                if (out == "--title")
+                {
+                    cmd_list.push_back(out);
+                    ss >> out;
+                    while (out != "--content")
+                    {
+                        title.append(out + " ");
+                        ss >> out;
+                        if (ss.eof())
+                        {
+                            break;
+                        }
+                    }
+                    cmd_list.push_back(title);
+                    cout << "title= " << title << endl;
+                    cmd_list.push_back(out);
+                    getline(ss, gg, ' ');
+                    getline(ss, content, '\n');
+                    cmd_list.push_back(content);
+                    break;
+                }
+                else if (out == "--content")
+                {
+                    cmd_list.push_back(out);
+                    ss >> out;
+                    while (out != "--title")
+                    {
+                        content.append(out + " ");
+                        ss >> out;
+                        if (ss.eof())
+                        {
+                            break;
+                        }
+                    }
+                    cmd_list.push_back(content);
+                    cout << "content= " << content << endl;
+                    cmd_list.push_back(out);
+                    getline(ss, gg, ' ');
+                    getline(ss, title, '\n');
+                    cmd_list.push_back(title);
+                    break;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            if (post_c == split && update == 1)
+            {
+                //cmd: update-post
+                string modify, gg;
+                ss >> out;
                 cmd_list.push_back(out);
-                string msg_content, gg;
-                getline(ss, gg, '\"'); //put space
-                getline(ss, msg_content, '\"');
-                cmd_list.push_back(msg_content);
+                getline(ss, gg, ' ');
+                getline(ss, modify, '\n');
+                cmd_list.push_back(modify);
                 break;
             }
-            cmd_list.push_back(out);
-            split++;
+            ++split;
         }
+        ss.str("");
         ss.clear();
-        /*
+
+        cout << "cmd list size: " << cmd_list.size() << endl;
         for (int i = 0; i < cmd_list.size(); i++)
         {
             cout << cmd_list[i] << endl;
-        }*/
+        }
     }
     return Parase(cmd_list, uid);
 }
@@ -300,8 +368,8 @@ string BBS_server::Parase(vector<string> cmd_list, int uid)
     }
     else if (cmd_list[0] == "create-post")
     {
-        return error;
-        //return CreatePost(cmd_list);
+        //return error;
+        return CreatePost(cmd_list, uid);
     }
     else if (cmd_list[0] == "list-board")
     {
@@ -590,6 +658,26 @@ string BBS_server::ListBoard()
     return list;
 }
 
+string BBS_server::CreatePost(vector<string> cmd_list, int uid)
+{
+    if (cmd_list.size() != 6)
+    {
+        return "Usage: create-post <board-name> --title <title> --content <content>\n";
+    }
+    if (((cmd_list[2] == "--title") && (cmd_list[4] == "--content")) || ((cmd_list[2] == "--content") && (cmd_list[4] == "--title")))
+    {
+        if (user_state[uid] == 0)
+        {
+            return "Please login first.\n";
+        }
+        return "succ\n";
+    }
+    else
+    {
+        return "Usage: create-post <board-name> --title <title> --content <content>\n";
+    }
+}
+
 int main(int argc, char const *argv[])
 {
     int sockfd, newfd;
@@ -692,7 +780,7 @@ int main(int argc, char const *argv[])
             sd = client_socket[i];
             if (FD_ISSET(sd, &read_fd))
             {
-                cout << "request from sd: " << sd << endl;
+                //cout << "request from sd: " << sd << endl;
                 //receive cmd from client
                 char buff[1024];
                 memset(buff, 0, 1024);

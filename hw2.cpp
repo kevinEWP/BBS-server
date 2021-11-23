@@ -9,6 +9,7 @@
 #include <vector>
 #include <map>
 #include <sys/time.h>
+#include <ctime>
 
 #define IP "127.0.0.1"
 #define prompt "% "
@@ -180,6 +181,12 @@ public:
     string List_msg(int uid);
     string Receive(vector<string> cmd_list, int uid);
     //HW2
+    int serial_number = 0;
+    int get_sn()
+    {
+        return ++serial_number;
+    }
+    int month, day;
     string CreateBoard(vector<string> cmd_list, int uid);
     string CreatePost(vector<string> cmd_list, int uid);
     string ListBoard();
@@ -197,6 +204,12 @@ BBS_server::BBS_server(int max_client)
         user_state.push_back(0);
         user.push_back("");
     }
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+    month = 1 + ltm->tm_mon;
+    day = ltm->tm_mday;
+    cout << "Month: " << 1 + ltm->tm_mon << endl;
+    cout << "Day: " << ltm->tm_mday << endl;
 }
 
 BBS_server::~BBS_server()
@@ -377,8 +390,8 @@ string BBS_server::Parase(vector<string> cmd_list, int uid)
     }
     else if (cmd_list[0] == "list-post")
     {
-        return error;
-        //return ListPost(cmd_list);
+        //return error;
+        return ListPost(cmd_list);
     }
     else if (cmd_list[0] == "read")
     {
@@ -670,11 +683,77 @@ string BBS_server::CreatePost(vector<string> cmd_list, int uid)
         {
             return "Please login first.\n";
         }
-        return "succ\n";
+        auto it = board_list.find(cmd_list[1]);
+        if (it != board_list.end())
+        {
+            if (cmd_list[2] == "--title")
+            {
+                string t;
+                t.append(to_string(month));
+                t.append("/");
+                t.append(to_string(day));
+                int sn = get_sn();
+                Post newpost(sn, user[uid], t, cmd_list[1], cmd_list[3]);
+                newpost.CreateContent(cmd_list[5]);
+                pair<map<int, Post>::iterator, bool> ret;
+                ret = post_list.insert(pair<int, Post>(sn, newpost));
+                if (ret.second == true)
+                {
+                    //board insert post
+                    it->second.CreatePost(newpost);
+                    return "Create post successfully.\n";
+                }
+                else
+                {
+                    return "";
+                }
+            }
+            else
+            {
+                string t;
+                t.append(to_string(month));
+                t.append("/");
+                t.append(to_string(day));
+                int sn = get_sn();
+                Post newpost(sn, user[uid], t, cmd_list[1], cmd_list[5]);
+                newpost.CreateContent(cmd_list[3]);
+                pair<map<int, Post>::iterator, bool> ret;
+                ret = post_list.insert(pair<int, Post>(sn, newpost));
+                if (ret.second == true)
+                {
+                    return "Create post successfully.\n";
+                }
+                else
+                {
+                    return "";
+                }
+            }
+        }
+        else
+        {
+            return "Board does not exist.\n";
+        }
     }
     else
     {
         return "Usage: create-post <board-name> --title <title> --content <content>\n";
+    }
+}
+
+string BBS_server::ListPost(vector<string> cmd_list)
+{
+    if (cmd_list.size() != 2)
+    {
+        return "Usage: list-post <board-name>\n";
+    }
+    auto it = board_list.find(cmd_list[1]);
+    if (it != board_list.end())
+    {
+        return it->second.ShowBoard();
+    }
+    else
+    {
+        return "Board does not exist.\n";
     }
 }
 

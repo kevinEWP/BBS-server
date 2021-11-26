@@ -38,7 +38,7 @@ public:
     void CreateContent(string text);
     void CreateComment(Comment newcomment);
     string ShowPost();
-    void UpdatePost();
+    void UpdatePost(string which_update, string newthing);
     ~Post();
 };
 Post::Post(int n, string user, string time, string board, string headline)
@@ -49,7 +49,6 @@ Post::Post(int n, string user, string time, string board, string headline)
     board_name = board;
     title = headline;
 }
-
 Post::~Post()
 {
     contents.clear();
@@ -58,6 +57,16 @@ Post::~Post()
 void Post::CreateContent(string text)
 {
     //if text has <br>, save as next line
+    string cut, trash;
+    stringstream handler;
+    handler << text;
+    while (!handler.eof())
+    {
+        getline(handler, cut, '<');
+        getline(handler, trash, '>');
+        cout << cut << endl;
+        contents.push_back(cut);
+    }
 }
 void Post::CreateComment(Comment newcomment)
 {
@@ -85,6 +94,28 @@ string Post::ShowPost()
     }
     return show;
 }
+void Post::UpdatePost(string which_update, string newthing)
+{
+    if (which_update == "--title")
+    {
+        title = newthing;
+    }
+    if (which_update == "--content")
+    {
+        contents.clear();
+        string cut, trash;
+        stringstream handler;
+        handler << newthing;
+        while (!handler.eof())
+        {
+            getline(handler, cut, '<');
+            getline(handler, trash, '>');
+            cout << cut << endl;
+            contents.push_back(cut);
+        }
+    }
+}
+
 class Board
 {
 private:
@@ -166,6 +197,7 @@ public:
     BBS_server(int max_client);
     ~BBS_server();
     //diff from HW1 user_state, user(vec)
+    int maxuser;
     vector<int> user_state; //login table
     vector<string> user;    //login username
     string Split_cmd(string cmd, int uid);
@@ -194,7 +226,7 @@ public:
     string Read(vector<string> cmd_list);
     string DeletePost(vector<string> cmd_list, int uid);
     string UpdatePost(vector<string> cmd_list, int uid);
-    string Comment(vector<string> cmd_list, int uid);
+    string LeaveComment(vector<string> cmd_list, int uid);
 };
 
 BBS_server::BBS_server(int max_client)
@@ -204,12 +236,13 @@ BBS_server::BBS_server(int max_client)
         user_state.push_back(0);
         user.push_back("");
     }
+    maxuser = max_client;
     time_t now = time(0);
     tm *ltm = localtime(&now);
     month = 1 + ltm->tm_mon;
     day = ltm->tm_mday;
-    cout << "Month: " << 1 + ltm->tm_mon << endl;
-    cout << "Day: " << ltm->tm_mday << endl;
+    //cout << "Month: " << 1 + ltm->tm_mon << endl;
+    //cout << "Day: " << ltm->tm_mday << endl;
 }
 
 BBS_server::~BBS_server()
@@ -238,7 +271,7 @@ string BBS_server::Split_cmd(string cmd, int uid)
         //cout << "start split" << endl;
         stringstream ss;
         string out;
-        int split = 1, post_c = 0, create = 0, update = 0;
+        int split = 1, post_c = 0, create = 0, update = 0, comment = 0;
         //cout << "cmd: " << cmd;
         ss << cmd;
         while (ss >> out)
@@ -253,6 +286,11 @@ string BBS_server::Split_cmd(string cmd, int uid)
             {
                 post_c = 2;
                 update = 1;
+            }
+            if (out == "comment")
+            {
+                post_c = 2;
+                comment = 1;
             }
             if (post_c == split && create == 1)
             {
@@ -278,7 +316,7 @@ string BBS_server::Split_cmd(string cmd, int uid)
                         }
                     }
                     cmd_list.push_back(title);
-                    cout << "title= " << title << endl;
+                    //cout << "title= " << title << endl;
                     cmd_list.push_back(out);
                     getline(ss, gg, ' ');
                     getline(ss, content, '\n');
@@ -299,7 +337,7 @@ string BBS_server::Split_cmd(string cmd, int uid)
                         }
                     }
                     cmd_list.push_back(content);
-                    cout << "content= " << content << endl;
+                    //cout << "content= " << content << endl;
                     cmd_list.push_back(out);
                     getline(ss, gg, ' ');
                     getline(ss, title, '\n');
@@ -322,16 +360,25 @@ string BBS_server::Split_cmd(string cmd, int uid)
                 cmd_list.push_back(modify);
                 break;
             }
+            if (post_c == split && comment == 1)
+            {
+                //cmd: comment
+                string text, gg;
+                getline(ss, gg, ' ');
+                getline(ss, text, '\n');
+                cmd_list.push_back(text);
+                break;
+            }
             ++split;
         }
         ss.str("");
         ss.clear();
-
-        cout << "cmd list size: " << cmd_list.size() << endl;
+        /*
+        //cout << "cmd list size: " << cmd_list.size() << endl;
         for (int i = 0; i < cmd_list.size(); i++)
         {
             cout << cmd_list[i] << endl;
-        }
+        }*/
     }
     return Parase(cmd_list, uid);
 }
@@ -395,23 +442,23 @@ string BBS_server::Parase(vector<string> cmd_list, int uid)
     }
     else if (cmd_list[0] == "read")
     {
-        return error;
-        //return Read(cmd_list);
+        //return error;
+        return Read(cmd_list);
     }
     else if (cmd_list[0] == "delete-post")
     {
-        return error;
-        //return DeletePost(cmd_list);
+        //return error;
+        return DeletePost(cmd_list, uid);
     }
     else if (cmd_list[0] == "update-post")
     {
-        return error;
-        //return UpdatePost(cmd_list);
+        //return error;
+        return UpdatePost(cmd_list, uid);
     }
     else if (cmd_list[0] == "comment")
     {
-        return error;
-        //return Comment(cmd_list);
+        //return error;
+        return LeaveComment(cmd_list, uid);
     }
     return error;
 }
@@ -456,7 +503,19 @@ string BBS_server::Login(vector<string> cmd_list, int uid)
     }
     if (user_state[uid] == 1)
     {
+        //already login
         return "Please logout first.\n";
+    }
+    for (int i = 0; i < maxuser; i++)
+    {
+        if (user_state[i] == 1)
+        {
+            //other login user
+            if (user[i] == cmd_list[1])
+            {
+                return "Please logout first.\n";
+            }
+        }
     }
     map<string, string>::iterator iter;
     iter = db.find(cmd_list[1]);
@@ -490,7 +549,9 @@ string BBS_server::Logout(int uid)
     else
     {
         user_state[uid] = 0;
-        return "Bye, " + user[uid] + ".\n";
+        string owner = user[uid];
+        user[uid] = "";
+        return "Bye, " + owner + ".\n";
     }
 }
 
@@ -757,6 +818,102 @@ string BBS_server::ListPost(vector<string> cmd_list)
     }
 }
 
+string BBS_server::Read(vector<string> cmd_list)
+{
+    if (cmd_list.size() != 2)
+    {
+        return "Usage: read <post-S/N>\n";
+    }
+    auto ret = post_list.find(stoi(cmd_list[1]));
+    if (ret != post_list.end())
+    {
+        return ret->second.ShowPost();
+    }
+    else
+    {
+        return "Post does not exist.\n";
+    }
+}
+
+string BBS_server::DeletePost(vector<string> cmd_list, int uid)
+{
+    if (cmd_list.size() != 2)
+    {
+        return "Usage: delete-post <post-S/N>\n";
+    }
+    if (user_state[uid] == 0)
+    {
+        return "Please login first.\n";
+    }
+    auto ret = post_list.find(stoi(cmd_list[1]));
+    if (ret != post_list.end())
+    {
+        if (ret->second.author != user[uid])
+        {
+            return "Not the post owner.\n";
+        }
+        post_list.erase(ret);
+        return "Delete successfully.\n";
+    }
+    else
+    {
+        return "Post does not exist.\n";
+    }
+}
+
+string BBS_server::UpdatePost(vector<string> cmd_list, int uid)
+{
+    if (cmd_list.size() != 4)
+    {
+        return "Usage: update-post <post-S/N> --title/content <new>\n";
+    }
+    if (cmd_list[2] != "--title" && cmd_list[2] != "--content")
+    {
+        return "Usage: update-post <post-S/N> --title/content <new>\n";
+    }
+    if (user_state[uid] == 0)
+    {
+        return "Please login first.\n";
+    }
+    auto ret = post_list.find(stoi(cmd_list[1]));
+    if (ret != post_list.end())
+    {
+        if (ret->second.author != user[uid])
+        {
+            return "Not the post owner.\n";
+        }
+        ret->second.UpdatePost(cmd_list[2], cmd_list[3]);
+        return "Update successfully.\n";
+    }
+    else
+    {
+        return "Post does not exist.\n";
+    }
+}
+
+string BBS_server::LeaveComment(vector<string> cmd_list, int uid)
+{
+    if (cmd_list.size() != 3)
+    {
+        return "Usage: comment <post-S/N> <comment>\n";
+    }
+    if (user_state[uid] == 0)
+    {
+        return "Please login first.\n";
+    }
+    auto ret = post_list.find(stoi(cmd_list[1]));
+    if (ret != post_list.end())
+    {
+        Comment newcomment(user[uid], cmd_list[2]);
+        ret->second.CreateComment(newcomment);
+        return "Comment successfully.\n";
+    }
+    else
+    {
+        return "Post does not exist.\n";
+    }
+}
+
 int main(int argc, char const *argv[])
 {
     int sockfd, newfd;
@@ -842,13 +999,13 @@ int main(int argc, char const *argv[])
                 if (client_socket[i] == 0)
                 {
                     client_socket[i] = newfd;
-                    cout << "Adding to list of sockets as " << i << endl;
+                    //cout << "Adding to list of sockets as " << i << endl;
                     break;
                 }
             }
             //greeting
             send(newfd, greeting1, strlen(greeting1), 0);
-            send(newfd, greeting2, strlen(greeting1), 0);
+            send(newfd, greeting2, strlen(greeting2), 0);
             send(newfd, greeting1, strlen(greeting1), 0);
             //send %
             send(newfd, (char *)"% ", strlen("% "), 0);

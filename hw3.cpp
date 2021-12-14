@@ -32,7 +32,7 @@ public:
     string Parase(vector<string> cmd_list, int uid);
     string Register(vector<string> cmd_list);
     string Login(vector<string> cmd_list, int uid);
-    string Logout(int uid);
+    string Logout(vector<string> cmd_list, int uid);
 };
 
 BBS_server::BBS_server(int max_client)
@@ -43,10 +43,6 @@ BBS_server::BBS_server(int max_client)
         user.push_back("");
     }
     maxuser = max_client;
-    time_t now = time(0);
-    tm *ltm = localtime(&now);
-    month = 1 + ltm->tm_mon;
-    day = ltm->tm_mday;
     // cout << "Month: " << 1 + ltm->tm_mon << endl;
     // cout << "Day: " << ltm->tm_mday << endl;
 }
@@ -55,7 +51,6 @@ BBS_server::~BBS_server()
 {
     // clean db, mb
     db.clear();
-    user_list.clear();
     user_state.clear();
     user.clear();
 }
@@ -198,11 +193,18 @@ string BBS_server::Parase(vector<string> cmd_list, int uid)
     }
     else if (cmd_list[0] == "logout")
     {
-        return Logout(uid);
+        return Logout(cmd_list, uid);
     }
     else if (cmd_list[0] == "exit")
     {
-        return cmd_list[0];
+        if (cmd_list.size() != 1)
+        {
+            return "Usage: exit\n";
+        }
+        else
+        {
+            return cmd_list[0];
+        }
     }
     return error;
 }
@@ -219,8 +221,6 @@ string BBS_server::Register(vector<string> cmd_list)
     ret = db.insert(pair<string, string>(username, password));
     if (ret.second == true)
     {
-        Mailbox mb(username);
-        user_list.push_back(mb);
         return "Register successfully.\n";
     }
     else
@@ -274,8 +274,12 @@ string BBS_server::Login(vector<string> cmd_list, int uid)
     }
 }
 
-string BBS_server::Logout(int uid)
+string BBS_server::Logout(vector<string> cmd_list, int uid)
 {
+    if (cmd_list.size() != 1)
+    {
+        return "Usage: logout\n";
+    }
     if (user_state[uid] == 0)
     {
         return "Please login first.\n";
@@ -412,9 +416,13 @@ int main(int argc, char const *argv[])
                     string reply = bbs.Split_cmd(cmd, i);
                     if (reply == "exit")
                     {
+                        //excute exit
                         if (bbs.user_state[i] == 1)
                         {
-                            string bye_msg = "Bye, " + bbs.user[i] + ".\n";
+                            //user not logged out
+                            vector<string> byebye;
+                            byebye.push_back("logout");
+                            string bye_msg = bbs.Logout(byebye, i);
                             send(sd, (char *)bye_msg.c_str(), bye_msg.length() * sizeof(bye_msg[0]), 0);
                         }
                         // close client fd

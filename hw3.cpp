@@ -15,6 +15,89 @@
 #define prompt "% "
 using namespace std;
 
+class Filterlist
+{
+public:
+    vector<string> filter_words;
+    vector<string> ban_words;
+    Filterlist()
+    {
+        filter_words.push_back("how");
+        filter_words.push_back("you");
+        filter_words.push_back("or");
+        filter_words.push_back("pek0");
+        filter_words.push_back("tea");
+        filter_words.push_back("ha");
+        filter_words.push_back("kon");
+        filter_words.push_back("pain");
+        filter_words.push_back("Starburst Stream");
+        ban_words.push_back("***");
+        ban_words.push_back("***");
+        ban_words.push_back("**");
+        ban_words.push_back("****");
+        ban_words.push_back("***");
+        ban_words.push_back("**");
+        ban_words.push_back("***");
+        ban_words.push_back("****");
+        ban_words.push_back("****************");
+    }
+    string Check_filter(string input)
+    {
+
+        size_t found;
+        for (int i = 0; i < 9; i++)
+        {
+            int pos = 0;
+            while (pos < input.size())
+            {
+                found = input.find(filter_words[i], pos);
+                if (found != string::npos)
+                {
+                    input.replace(found, ban_words.size(), ban_words[i]);
+                    pos = found + ban_words.size();
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+        //cout << input << endl;
+        return input;
+    }
+};
+
+class Blacklist
+{
+public:
+    vector<string> ban;
+    bool Check_ban(string username)
+    {
+        if (ban.empty())
+        {
+            return false;
+        }
+        for (auto it = ban.begin(); it != ban.end(); it++)
+        {
+            if (username == *it)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+class ChatHistory
+{
+public:
+    string history;
+    void Addrecord(string name, string message)
+    {
+        history.append(name + ":" + message + "\n");
+    }
+};
+
 class BBS_server
 {
 private:
@@ -33,6 +116,15 @@ public:
     string Register(vector<string> cmd_list);
     string Login(vector<string> cmd_list, int uid);
     string Logout(vector<string> cmd_list, int uid);
+    ///////////////////////////////HW3
+    vector<int> user_version;
+    Filterlist no_words;
+    Blacklist banned;
+    ChatHistory chat;
+    void BindRoom(int port);
+    string EnterRoom(string cmd, int port, int version, int uid);
+    string Chat_handle(vector<string> cmd_list, int uid);
+    void Broadcast();
 };
 
 BBS_server::BBS_server(int max_client)
@@ -40,11 +132,10 @@ BBS_server::BBS_server(int max_client)
     for (int i = 0; i < max_client; i++)
     {
         user_state.push_back(0);
+        user_version.push_back(0);
         user.push_back("");
     }
     maxuser = max_client;
-    // cout << "Month: " << 1 + ltm->tm_mon << endl;
-    // cout << "Day: " << ltm->tm_mday << endl;
 }
 
 BBS_server::~BBS_server()
@@ -59,7 +150,7 @@ string BBS_server::Split_cmd(string cmd, int uid)
 {
     string error("");
     vector<string> cmd_list;
-    if (cmd.length() < 5)
+    if (cmd.length() < 4)
     {
         return error;
     }
@@ -287,10 +378,41 @@ string BBS_server::Logout(vector<string> cmd_list, int uid)
     else
     {
         user_state[uid] = 0;
+        user_version[uid] = 0;
         string owner = user[uid];
         user[uid] = "";
         return "Bye, " + owner + ".\n";
     }
+}
+
+void BBS_server::BindRoom(int port)
+{
+}
+
+string BBS_server::EnterRoom(string cmd, int port, int version, int uid)
+{
+    if (port == -1 || version == -1)
+    {
+        return "Usage: enter-chat-room <port> <version>\n";
+    }
+    if (port < 1 || port > 65535)
+    {
+        return "Port <port> is not valid.\n";
+    }
+    if (version != 1 && version != 2)
+    {
+        return "Version <version> is not supported.\n";
+    }
+    if (user_state[uid] == 0)
+    {
+        return "Please login first.\n";
+    }
+    //bind to chatroom
+    BindRoom(port);
+    //success
+    string welcomeMsg("Welcome to public chat room.\nPort:");
+    welcomeMsg.append(to_string(port) + "\nVersion:" + to_string(version) + "\n" + chat.history + "\n");
+    return welcomeMsg;
 }
 
 int main(int argc, char const *argv[])
